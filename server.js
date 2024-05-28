@@ -9,8 +9,11 @@ require('dotenv').config();
 const db = new sqlite3.Database('./database.db');
 const app = express();
 app.use(express.json());
-app.use(cors());
-
+// Allow requests from your frontend domain
+app.use(cors({
+  origin: 'https://frontend-osa.vercel.app',
+  credentials: true, // if you're using cookies or authentication headers
+}));
 // Create tables for users, patients, and test bookings
 db.serialize(() => {
   db.run(`
