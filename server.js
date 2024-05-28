@@ -12,8 +12,10 @@ app.use(express.json());
 // Allow requests from your frontend domain
 app.use(cors({
   origin: 'https://frontend-osa.vercel.app',
+  methods: ['GET', 'POST', 'DELETE'], // Define allowed methods as an array of strings
   credentials: true, // if you're using cookies or authentication headers
 }));
+
 // Create tables for users, patients, and test bookings
 db.serialize(() => {
   db.run(`
@@ -448,5 +450,5 @@ app.get('/api/recent-activity', (req, res) => {
 
 // Start the server
 app.listen(4000, () => {
-  console.log('Server running on http://localhost:4000');
+  console.log('Server running on https://backend-osa.vercel.app');
 });
