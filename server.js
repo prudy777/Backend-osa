@@ -3,18 +3,12 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-
 require('dotenv').config();
 
 const db = new sqlite3.Database('./database.db');
 const app = express();
 app.use(express.json());
-// Allow requests from your frontend domain
-app.use(cors({
-  origin: 'https://frontend-osa.vercel.app',
-  methods: ['GET', 'POST', 'DELETE'], // Define allowed methods as an array of strings
-  credentials: true, // if you're using cookies or authentication headers
-}));
+app.use(cors());
 
 // Create tables for users, patients, and test bookings
 db.serialize(() => {
@@ -87,7 +81,36 @@ db.serialize(() => {
       description TEXT
     )
   `);
-}); 
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS printed_tests (
+      test_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER,
+      lab_no INTEGER,
+      name TEXT,
+      sex TEXT,
+      age TEXT,
+      age_unit TEXT,
+      panel TEXT,
+      referred_by TEXT,
+      date TEXT,
+      test_name TEXT,
+      rate REAL,
+      price_naira REAL,
+      reference_range TEXT,
+      interpretation TEXT,
+      FOREIGN KEY (patient_id) REFERENCES patients(patient_no),
+      FOREIGN KEY (lab_no) REFERENCES lab_numbers(lab_no)
+    )
+  `);
+});
+
+// Allow requests from your frontend domain
+app.use(cors({
+  origin: ['https://osamedic-lab-frontend.vercel.app'],
+  methods: ['GET', 'POST', 'DELETE', 'PUT'],
+  credentials: true,
+}));
 
 // User registration endpoint
 app.post('/signup', async (req, res) => {
@@ -169,7 +192,6 @@ app.get('/patients/:id', (req, res) => {
   });
 });
 
-
 // Endpoint to get accepted patients
 app.get('/accepted-patients', (req, res) => {
   db.all('SELECT * FROM patients WHERE status = "accepted"', [], (err, rows) => {
@@ -184,10 +206,9 @@ app.get('/accepted-patients', (req, res) => {
 app.put('/patients/:id/status', (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  console.log(`Updating patient ID: ${id} with status: ${status}`); // Debugging log
   db.run('UPDATE patients SET status = ? WHERE id = ?', [status, id], function (err) {
     if (err) {
-      console.error('Error updating patient status:', err); // Debugging log
+      console.error('Error updating patient status:', err);
       return res.status(500).send('Failed to update patient status');
     }
     res.status(200).send('Patient status updated successfully');
@@ -208,12 +229,12 @@ app.delete('/patients/:id', (req, res) => {
 
 // Endpoint to save test booking
 app.post('/test-booking', (req, res) => {
-  const { patientId, labNo, name, sex, age, ageUnit, panel, referredBy, date, tests } = req.body;
+  const { patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests } = req.body;
   const testBookingQuery = `
-    INSERT INTO test_bookings (patient_id, lab_no, name, sex, age, age_unit, panel, referred_by, date)
+    INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, age_unit, panel, referred_by, date)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  db.run(testBookingQuery, [patientId, labNo, name, sex, age, ageUnit, panel, referredBy, date], function (err) {
+  db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date], function (err) {
     if (err) {
       console.error('Error saving test booking:', err);
       return res.status(500).send('Failed to save test booking');
@@ -234,48 +255,154 @@ app.post('/test-booking', (req, res) => {
     }
     stmt.finalize((err) => {
       if (err) {
-        console.error('Error finalizing statement:', err);
-        return res.status(500).send('Failed to finalize test details');
+        console.error('Error finalizing test details statement:', err);
+        return res.status(500).send('Failed to finalize test details statement');
       }
       res.status(201).send('Test booking saved successfully');
     });
   });
 });
 
+// Endpoint to get all test bookings
 app.get('/test-bookings', (req, res) => {
-  db.all(`
-    SELECT tb.id, tb.patient_id, tb.lab_no, tb.name, tb.sex, tb.age, tb.age_unit, tb.panel, tb.referred_by, tb.date, 
-           td.test_id, td.test_name, td.rate, td.reference_range, td.interpretation
+  const query = `
+    SELECT tb.*, td.test_name, td.rate, td.price_naira, td.reference_range, td.interpretation
     FROM test_bookings tb
     LEFT JOIN test_details td ON tb.id = td.booking_id
-  `, [], (err, rows) => {
+  `;
+  db.all(query, [], (err, rows) => {
     if (err) {
       console.error('Error retrieving test bookings:', err);
       return res.status(500).send('Failed to retrieve test bookings');
     }
-    res.status(200).json(rows);
+    const bookings = rows.reduce((acc, row) => {
+      const booking = acc.find(b => b.id === row.id);
+      if (booking) {
+        booking.tests.push({
+          test_name: row.test_name,
+          rate: row.rate,
+          price_naira: row.price_naira,
+          reference_range: row.reference_range,
+          interpretation: row.interpretation
+        });
+      } else {
+        acc.push({
+          id: row.id,
+          patient_no: row.patient_no,
+          lab_no: row.lab_no,
+          name: row.name,
+          sex: row.sex,
+          age: row.age,
+          age_unit: row.age_unit,
+          panel: row.panel,
+          referred_by: row.referred_by,
+          date: row.date,
+          tests: [{
+            test_name: row.test_name,
+            rate: row.rate,
+            price_naira: row.price_naira,
+            reference_range: row.reference_range,
+            interpretation: row.interpretation
+          }]
+        });
+      }
+      return acc;
+    }, []);
+    res.status(200).json(bookings);
   });
 });
 
-// Endpoint to delete test bookings by id
+// Endpoint to delete a test booking
 app.delete('/test-bookings/:id', (req, res) => {
   const { id } = req.params;
-  db.run('DELETE FROM test_details WHERE booking_id = ?', [id], function (err) {
+  db.run('DELETE FROM test_bookings WHERE id = ?', id, function (err) {
     if (err) {
-      console.error('Error deleting test details:', err);
-      return res.status(500).send('Failed to delete test details');
+      console.error('Error deleting test booking:', err);
+      return res.status(500).send('Failed to delete test booking');
     }
-    db.run('DELETE FROM test_bookings WHERE id = ?', [id], function (err) {
+    db.run('DELETE FROM test_details WHERE booking_id = ?', id, function (err) {
       if (err) {
-        console.error('Error deleting test booking:', err);
-        return res.status(500).send('Failed to delete test booking');
+        console.error('Error deleting test details:', err);
+        return res.status(500).send('Failed to delete test details');
       }
       res.status(200).send('Test booking deleted successfully');
     });
   });
 });
 
-// Save printed tests
+// Endpoint to save printed test
+app.post('/printed-tests', (req, res) => {
+  const { patient_id, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests } = req.body;
+  const printedTestQuery = `
+    INSERT INTO printed_tests (patient_id, lab_no, name, sex, age, age_unit, panel, referred_by, date, test_name, rate, price_naira, reference_range, interpretation)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  const stmt = db.prepare(printedTestQuery);
+  for (const test of tests) {
+    stmt.run([patient_id, lab_no, name, sex, age, ageUnit, panel, referredBy, date, test.name, test.rate, test.rate, test.referenceRange, test.interpretation], function (err) {
+      if (err) {
+        console.error('Error saving printed test:', err);
+        return res.status(500).send('Failed to save printed test');
+      }
+    });
+  }
+  stmt.finalize((err) => {
+    if (err) {
+      console.error('Error finalizing printed test statement:', err);
+      return res.status(500).send('Failed to finalize printed test statement');
+    }
+    res.status(201).send('Printed test saved successfully');
+  });
+});
+
+// Endpoint to get all printed tests
+app.get('/printed-tests', (req, res) => {
+  const query = `
+    SELECT pt.*, p.first_name, p.last_name, p.dob, p.email, p.phone
+    FROM printed_tests pt
+    LEFT JOIN patients p ON pt.patient_id = p.patient_no
+  `;
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('Error retrieving printed tests:', err);
+      return res.status(500).send('Failed to retrieve printed tests');
+    }
+    const printedTests = rows.reduce((acc, row) => {
+      const test = {
+        test_id: row.test_id,
+        name: row.name,
+        sex: row.sex,
+        age: row.age,
+        age_unit: row.age_unit,
+        panel: row.panel,
+        referred_by: row.referred_by,
+        date: row.date,
+        test_name: row.test_name,
+        rate: row.rate,
+        price_naira: row.price_naira,
+        reference_range: row.reference_range,
+        interpretation: row.interpretation
+      };
+      const patient = acc.find(p => p.patient_no === row.patient_id);
+      if (patient) {
+        patient.tests.push(test);
+      } else {
+        acc.push({
+          patient_no: row.patient_id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          dob: row.dob,
+          email: row.email,
+          phone: row.phone,
+          tests: [test]
+        });
+      }
+      return acc;
+    }, []);
+    res.status(200).json(printedTests);
+  });
+});
+ // Save printed tests
 app.post('/masters', (req, res) => {
   const { tests } = req.body;
   const stmt = db.prepare(`
@@ -325,130 +452,8 @@ app.get('/masters', (req, res) => {
   });
 });
 
-// Endpoint to get transactions
-app.get('/accounting/transactions', (req, res) => {
-  db.all('SELECT * FROM transactions', [], (err, rows) => {
-    if (err) {
-      console.error('Error retrieving transactions:', err);
-      return res.status(500).send('Failed to retrieve transactions');
-    }
-    res.status(200).json(rows);
-  });
-});
-
-// Endpoint to add a transaction
-app.post('/accounting/transactions', (req, res) => {
-  const { date, type, category, amount, description } = req.body;
-  db.run('INSERT INTO transactions (date, type, category, amount, description) VALUES (?, ?, ?, ?, ?)', [date, type, category, amount, description], function (err) {
-    if (err) {
-      console.error('Error adding transaction:', err);
-      return res.status(500).send('Failed to add transaction');
-    }
-    res.status(201).send('Transaction added successfully');
-  });
-});
-
-// Endpoint to update a transaction
-app.put('/accounting/transactions/:id', (req, res) => {
-  const { id } = req.params;
-  const { date, type, category, amount, description } = req.body;
-  db.run('UPDATE transactions SET date = ?, type = ?, category = ?, amount = ?, description = ? WHERE id = ?', [date, type, category, amount, description, id], function (err) {
-    if (err) {
-      console.error('Error updating transaction:', err);
-      return res.status(500).send('Failed to update transaction');
-    }
-    res.status(200).send('Transaction updated successfully');
-  });
-});
-
-// Endpoint to delete a transaction
-app.delete('/accounting/transactions/:id', (req, res) => {
-  const { id } = req.params;
-  db.run('DELETE FROM transactions WHERE id = ?', [id], function (err) {
-    if (err) {
-      console.error('Error deleting transaction:', err);
-      return res.status(500).send('Failed to delete transaction');
-    }
-    res.status(200).send('Transaction deleted successfully');
-  });
-});
-
-// Endpoint to get sales data
-app.get('/api/sales', (req, res) => {
-  const salesData = {
-    today: 145,
-    increasePercentage: 12
-  };
-  res.json(salesData);
-});
-
-// Endpoint to get revenue data
-app.get('/api/revenue', (req, res) => {
-  const revenueData = {
-    thisMonth: 3264,
-    increasePercentage: 8
-  };
-  res.json(revenueData);
-});
-
-// Endpoint to get customer data
-app.get('/api/customers', (req, res) => {
-  const customersData = {
-    thisYear: 1244,
-    decreasePercentage: 12
-  };
-  res.json(customersData);
-});
-
-// Endpoint to get reports data
-app.get('/api/reports', (req, res) => {
-  const reportsData = {
-    sales: [31, 40, 28, 51, 42, 82, 56],
-    revenue: [11, 32, 45, 32, 34, 52, 41],
-    customers: [15, 11, 32, 18, 9, 24, 11],
-    categories: ["2018-09-19T00:00:00.000Z", "2018-09-19T01:30:00.000Z", "2018-09-19T02:30:00.000Z", "2018-09-19T03:30:00.000Z", "2018-09-19T04:30:00.000Z", "2018-09-19T05:30:00.000Z", "2018-09-19T06:30:00.000Z"]
-  };
-  res.json(reportsData);
-});
-
-// Endpoint to get recent sales data
-app.get('/api/recent-sales', (req, res) => {
-  const recentSalesData = [
-    { id: "#2457", customer: "Brandon Jacob", product: "At praesentium minu", price: 64, status: "Approved" },
-    { id: "#2147", customer: "Bridie Kessler", product: "Blanditiis dolor omnis similique", price: 47, status: "Pending" },
-    { id: "#2049", customer: "Ashleigh Langosh", product: "At recusandae consectetur", price: 147, status: "Approved" },
-    { id: "#2644", customer: "Angus Grady", product: "Ut voluptatem id earum et", price: 67, status: "Rejected" },
-    { id: "#2644", customer: "Raheem Lehner", product: "Sunt similique distinctio", price: 165, status: "Approved" }
-  ];
-  res.json(recentSalesData);
-});
-
-// Endpoint to get top selling products data
-app.get('/api/top-selling', (req, res) => {
-  const topSellingData = [
-    { preview: "assets/img/product-1.jpg", product: "Ut inventore ipsa voluptas nulla", price: 64, sold: 124, revenue: 5828 },
-    { preview: "assets/img/product-2.jpg", product: "Exercitationem similique doloremque", price: 46, sold: 98, revenue: 4508 },
-    { preview: "assets/img/product-3.jpg", product: "Doloribus nisi exercitationem", price: 59, sold: 74, revenue: 4366 },
-    { preview: "assets/img/product-4.jpg", product: "Officiis quaerat sint rerum error", price: 32, sold: 63, revenue: 2016 },
-    { preview: "assets/img/product-5.jpg", product: "Sit unde debitis delectus repellendus", price: 79, sold: 41, revenue: 3239 }
-  ];
-  res.json(topSellingData);
-});
-
-// Endpoint to get recent activity data
-app.get('/api/recent-activity', (req, res) => {
-  const recentActivityData = [
-    { label: "32 min", content: "Quia quae rerum explicabo officiis beatae", badge: "text-success" },
-    { label: "56 min", content: "Voluptatem blanditiis blanditiis eveniet", badge: "text-danger" },
-    { label: "2 hrs", content: "Voluptates corrupti molestias voluptatem", badge: "text-primary" },
-    { label: "1 day", content: "Tempore autem saepe occaecati voluptatem tempore", badge: "text-info" },
-    { label: "2 days", content: "Est sit eum reiciendis exercitationem", badge: "text-warning" },
-    { label: "4 weeks", content: "Dicta dolorem harum nulla eius. Ut quidem quidem sit quas", badge: "text-muted" }
-  ];
-  res.json(recentActivityData);
-});
-
-// Start the server
-app.listen(4000, () => {
-  console.log('Server running on https://backend-osa.vercel.app');
+// Starting the server
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
