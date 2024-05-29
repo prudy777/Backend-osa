@@ -19,8 +19,5 @@
     "jsonwebtoken": "^9.0.2",
     "pm2": "^5.3.1",
     "sqlite3": "^5.1.7"
-  },
-  "engines": {
-    "node": ">=14.x"
   }
 }
