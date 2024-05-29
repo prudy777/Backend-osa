@@ -107,7 +107,7 @@ db.serialize(() => {
 
 // Allow requests from your frontend domain
 app.use(cors({
-  origin: ['https://osamedic-lab-frontend.vercel.app'],
+  origin: ['https://frontend-osa.vercel.app'],
   methods: ['GET', 'POST', 'DELETE', 'PUT'],
   credentials: true,
 }));
