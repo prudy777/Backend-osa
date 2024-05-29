@@ -4,12 +4,8 @@ services:
     env: node
     plan: free
     buildCommand: |
-      buildCommand: |
-  npm install -g node-gyp
-  rm -rf node_modules
-  npm ci
-  npm rebuild bcrypt
-
+      npm install
+      npm rebuild bcrypt --build-from-source
     startCommand: npm start
     envVars:
       - key: NODE_ENV
