@@ -3,7 +3,10 @@ services:
     name: my-node-app
     env: node
     plan: free
-    buildCommand: npm install
+    buildCommand: |
+      rm -rf node_modules
+      npm install
+      npm rebuild bcrypt
     startCommand: npm start
     envVars:
       - key: NODE_ENV
