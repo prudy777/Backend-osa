@@ -4,11 +4,18 @@ const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 require('dotenv').config();
+const app = express();
+
+app.use(cors({
+  origin: 'https://frontend-osa.vercel.app', // Allow requests from your frontend URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Specify allowed HTTP methods
+  credentials: true // If you need to send cookies or authentication headers
+}));
 
 const db = new sqlite3.Database('./database.db');
-const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(express.urlencoded({ extended: true }));
+
 
 // Create tables for users, patients, and test bookings
 db.serialize(() => {
@@ -104,13 +111,6 @@ db.serialize(() => {
     )
   `);
 });
-
-// Allow requests from your frontend domain
-app.use(cors({
-  origin: ['https://frontend-osa.vercel.app'],
-  methods: ['GET', 'POST', 'DELETE', 'PUT'],
-  credentials: true,
-}));
 
 // User registration endpoint
 app.post('/signup', async (req, res) => {
