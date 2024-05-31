@@ -1,5 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 require('dotenv').config();
 const app = express();
-
+app.use(cors())
 app.use(cors({
   origin: 'https://frontend-osa.onrender.com', // Allow requests from your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Specify allowed HTTP methods
@@ -168,7 +168,7 @@ app.post('/signup', async (req, res) => {
 });
 
 // User login endpoint
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
     if (err) return res.status(500).send('Server error');
@@ -181,7 +181,7 @@ app.post('/login', (req, res) => {
 });
 
 // Patient registration endpoint
-app.post('/register', (req, res) => {
+app.post('/register',async (req, res) => {
   const { first_name, last_name, dob, email, phone, test_type } = req.body;
 
   db.run('INSERT INTO patients (first_name, last_name, dob, email, phone, test_type) VALUES (?, ?, ?, ?, ?, ?)', 

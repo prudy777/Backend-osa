@@ -1,6 +1,12 @@
 const sqlite3 = require('sqlite3').verbose();
 
-const db = new sqlite3.Database('./database.db');
+const db = new sqlite3.Database('./database.db', (err) => {
+  if (err) {
+    console.error('Could not connect to the database:', err);
+  } else {
+    console.log('Connected to the SQLite database.');
+  }
+});
 
 db.serialize(() => {
   db.run(`
@@ -9,27 +15,33 @@ db.serialize(() => {
       email TEXT UNIQUE,
       password TEXT
     )
-  `);
+  `, (err) => {
+    if (err) console.error('Error creating users table:', err.message);
+  });
 
   db.run(`
     CREATE TABLE IF NOT EXISTS patients (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      patient_no INTEGER UNIQUE,
-      first_name TEXT,
-      last_name TEXT,
-      dob TEXT,
-      email TEXT,
-      phone TEXT,
-      test_type TEXT,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      dob DATE NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      test_type TEXT NOT NULL,
+      patient_no INTEGER,
       status TEXT DEFAULT 'pending'
     )
-  `);
+  `, (err) => {
+    if (err) console.error('Error creating patients table:', err.message);
+  });
 
   db.run(`
     CREATE TABLE IF NOT EXISTS lab_numbers (
       lab_no INTEGER PRIMARY KEY AUTOINCREMENT
     )
-  `);
+  `, (err) => {
+    if (err) console.error('Error creating lab_numbers table:', err.message);
+  });
 
   db.run(`
     CREATE TABLE IF NOT EXISTS test_bookings (
@@ -46,7 +58,9 @@ db.serialize(() => {
       FOREIGN KEY (patient_no) REFERENCES patients(patient_no),
       FOREIGN KEY (lab_no) REFERENCES lab_numbers(lab_no)
     )
-  `);
+  `, (err) => {
+    if (err) console.error('Error creating test_bookings table:', err.message);
+  });
 
   db.run(`
     CREATE TABLE IF NOT EXISTS test_details (
@@ -60,7 +74,9 @@ db.serialize(() => {
       interpretation TEXT,
       FOREIGN KEY (booking_id) REFERENCES test_bookings(id)
     )
-  `);
+  `, (err) => {
+    if (err) console.error('Error creating test_details table:', err.message);
+  });
 
   db.run(`
     CREATE TABLE IF NOT EXISTS transactions (
@@ -71,18 +87,40 @@ db.serialize(() => {
       amount REAL,
       description TEXT
     )
-  `);
+  `, (err) => {
+    if (err) console.error('Error creating transactions table:', err.message);
+  });
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS printed_tests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      test_id TEXT,
+      patient_id INTEGER,
+      lab_no INTEGER,
+      name TEXT,
+      sex TEXT,
+      age TEXT,
+      age_unit TEXT,
+      panel TEXT,
+      referred_by TEXT,
+      date TEXT,
+      test_name TEXT,
+      rate REAL,
+      price_naira REAL,
+      reference_range TEXT,
+      interpretation TEXT
+    )
+  `, (err) => {
+    if (err) console.error('Error creating printed_tests table:', err.message);
+  });
 
-console.log('Database schema created successfully.');
-
-
+  console.log('Database schema created successfully.');
 
   // Function to add a column if it does not exist
   const addColumnIfNotExists = (tableName, columnName, columnType) => {
     db.all(`PRAGMA table_info(${tableName})`, (err, columns) => {
       if (err) {
-        console.error(`Error fetching table info for ${tableName}:`, err);
+        console.error(`Error fetching table info for ${tableName}:`, err.message);
         return;
       }
 
@@ -91,27 +129,24 @@ console.log('Database schema created successfully.');
       if (!columnExists) {
         db.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`, (err) => {
           if (err) {
-            console.error(`Error adding column ${columnName} to ${tableName}:`, err);
+            console.error(`Error adding column ${columnName} to ${tableName}:`, err.message);
+          } else {
+            console.log(`Column ${columnName} added to ${tableName}`);
           }
         });
       }
     });
   };
 
-  addColumnIfNotExists('test_details', 'price_naira', 'INTEGER');
+  addColumnIfNotExists('test_details', 'price_naira', 'REAL');
   addColumnIfNotExists('test_details', 'reference_range', 'TEXT');
   addColumnIfNotExists('test_details', 'interpretation', 'TEXT');
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT,
-      type TEXT,
-      category TEXT,
-      amount REAL,
-      description TEXT
-    )
-  `);
 });
 
-db.close();
+db.close((err) => {
+  if (err) {
+    console.error('Error closing the database connection:', err.message);
+  } else {
+    console.log('Closed the database connection.');
+  }
+});
