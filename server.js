@@ -3,6 +3,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
+const nodemailer = require('nodemailer');
+const twilio = require('twilio');
 require('dotenv').config();
 const app = express();
 
@@ -16,6 +18,44 @@ const db = new sqlite3.Database('./database.db');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Nodemailer configuration
+const transporter = nodemailer.createTransport({
+  service: process.env.EMAIL_SERVICE,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+// Twilio configuration
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// Function to send email
+const sendEmail = (to, subject, text) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error('Error sending email:', error);
+    } else {
+      console.log('Email sent:', info.response);
+    }
+  });
+};
+
+// Function to send WhatsApp message
+const sendWhatsApp = (to, message) => {
+  client.messages.create({
+    from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+    to: `whatsapp:${to}`,
+    body: message
+  }).then(message => console.log('WhatsApp message sent:', message.sid))
+    .catch(error => console.error('Error sending WhatsApp message:', error));
+};
 
 // Create tables for users, patients, and test bookings
 db.serialize(() => {
@@ -158,10 +198,19 @@ app.post('/register', (req, res) => {
         if (err) {
           return res.status(500).send('Failed to set patient number');
         }
+
+        // Send email and WhatsApp notifications
+        const emailMessage = `Dear ${first_name} ${last_name},\n\nYour registration for the test has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
+        sendEmail('ailemendaniel76@gmail.com', 'Test Registration Confirmation', emailMessage);
+
+        const whatsappMessage = `Dear ${first_name}, your registration for the test (${test_type}) has been received successfully. Thank you.`;
+        sendWhatsApp("+2347016724313", whatsappMessage);
+
         res.status(201).send('Patient registered successfully');
       });
     });
 });
+
 
 // Endpoint to get list of patients
 app.get('/patients', (req, res) => {
