@@ -192,12 +192,13 @@ app.post('/register', (req, res) => {
       }
 
       const patientId = this.lastID;
-
+    
       // Update the patient_no with the same value as the id
       db.run('UPDATE patients SET patient_no = ? WHERE id = ?', [patientId, patientId], function (err) {
         if (err) {
           return res.status(500).send('Failed to set patient number');
         }
+
 
         // Send email and WhatsApp notifications
         const emailMessage = `Dear ${first_name} ${last_name},\n\nYour registration for the test has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
