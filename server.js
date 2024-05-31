@@ -17,19 +17,20 @@ const db = new sqlite3.Database('./database.db');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Nodemailer configuration
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+
 // Twilio configuration
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 // Function to send email
 const sendEmail = (to, subject, text) => {
+  const transporter = nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to,
