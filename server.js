@@ -47,14 +47,14 @@ const sendEmail = (to, subject, text) => {
   });
 };
 
-// Function to send WhatsApp message
-const sendWhatsApp = (to, message) => {
+// Function to send SMS message
+const sendSMS = (to, message) => {
   client.messages.create({
-    from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-    to: `whatsapp:${to}`,
+    from: process.env.TWILIO_PHONE_NUMBER,
+    to,
     body: message
-  }).then(message => console.log('WhatsApp message sent:', message.sid))
-    .catch(error => console.error('Error sending WhatsApp message:', error));
+  }).then(message => console.log('SMS message sent:', message.sid))
+    .catch(error => console.error('Error sending SMS message:', error));
 };
 
 // Create tables for users, patients, and test bookings
@@ -168,7 +168,7 @@ app.post('/signup', async (req, res) => {
 });
 
 // User login endpoint
-app.post('/login', async (req, res) => {
+app.post('/login', (req, res) => {
   const { email, password } = req.body;
   db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
     if (err) return res.status(500).send('Server error');
@@ -204,8 +204,8 @@ app.post('/register',async (req, res) => {
         const emailMessage = `Dear ${first_name} ${last_name},\n\nYour registration for the test has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
         sendEmail('ailemendaniel76@gmail.com', 'Test Registration Confirmation', emailMessage);
 
-        const whatsappMessage = `Dear ${first_name}, your registration for the test (${test_type}) has been received successfully. Thank you.`;
-        sendWhatsApp("+2347016724313", whatsappMessage);
+        const smsMessage = `Dear ${first_name}, your registration for the test (${test_type}) has been received successfully. Thank you.`;
+        sendSMS("+2347016724313", smsMessage);
 
         res.status(201).send('Patient registered successfully');
       });
