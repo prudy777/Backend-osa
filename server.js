@@ -24,7 +24,7 @@ const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TO
 // Function to send email
 const sendEmail = (to, subject, text) => {
   const transporter = nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE,
+    service: 'Gmail',
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS
@@ -46,7 +46,6 @@ const sendEmail = (to, subject, text) => {
     }
   });
 };
-
 // Function to send SMS message
 const sendSMS = (to, message) => {
   client.messages.create({
