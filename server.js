@@ -7,7 +7,6 @@ const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 require('dotenv').config();
 const app = express();
-app.use(cors())
 app.use(cors({
   origin: 'https://frontend-osa.onrender.com', // Allow requests from your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Specify allowed HTTP methods
