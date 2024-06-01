@@ -56,6 +56,15 @@ const sendSMS = (to, message) => {
     .catch(error => console.error('Error sending SMS message:', error));
 };
 
+const makeCall = (to, url) => {
+  client.calls.create({
+    from: process.env.TWILIO_PHONE_NUMBER,
+    to,
+    url
+  }).then(call => console.log('Call initiated:', call.sid))
+    .catch(error => console.error('Error making call:', error));
+};
+
 // Create tables for users, patients, and test bookings
 db.serialize(() => {
   db.run(`
@@ -197,7 +206,7 @@ app.post('/register',async (req, res) => {
         if (err) {
           return res.status(500).send('Failed to set patient number');
         }
-
+ 
 
         // Send email and WhatsApp notifications
         const emailMessage = `Dear ${first_name} ${last_name},\n\nYour registration for the test has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
@@ -205,7 +214,9 @@ app.post('/register',async (req, res) => {
 
         const smsMessage = `Dear ${first_name}, your registration for the test:(${test_type}) has been received successfully. Thank you.`;
         sendSMS("+2347016724313", smsMessage);
-
+        
+        const callUrl = 'https://demo.twilio.com/welcome/voice/';
+        makeCall("+2347016724313", callUrl);
         res.status(201).send('Patient registered successfully');
       });
     });
