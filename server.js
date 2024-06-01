@@ -203,8 +203,8 @@ app.post('/register',async (req, res) => {
         const emailMessage = `Dear ${first_name} ${last_name},\n\nYour registration for the test has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
         sendEmail('ailemendaniel76@gmail.com', 'Test Registration Confirmation', emailMessage);
 
-        const smsMessage = `Dear ${first_name} ${last_name}, your registration for the test:(${test_type}) has been received successfully. Thank you.`;
-        sendSMS('2347016724313', smsMessage);
+        const smsMessage = `Dear ${first_name}, your registration for the test:(${test_type}) has been received successfully. Thank you.`;
+        sendSMS("+2347016724313", smsMessage);
 
         res.status(201).send('Patient registered successfully');
       });
