@@ -49,7 +49,7 @@ const sendEmail = (to, subject, text) => {
 // Function to send SMS message
 const sendSMS = (to, message) => {
   client.messages.create({
-    from: process.env.TWILIO_PHONE_NUMBER,
+    from:"+13613147013",
     to,
     body: message
   }).then(message => console.log('SMS message sent:', message.sid))
@@ -58,7 +58,7 @@ const sendSMS = (to, message) => {
 
 const makeCall = (to, url) => {
   client.calls.create({
-    from: process.env.TWILIO_PHONE_NUMBER,
+    from: "+13613147013",
     to,
     url
   }).then(call => console.log('Call initiated:', call.sid))
@@ -214,7 +214,7 @@ app.post('/register',async (req, res) => {
 
         const smsMessage = `Dear ${first_name}, your registration for the test:(${test_type}) has been received successfully. Thank you.`;
         sendSMS("+2347016724313", smsMessage);
-        
+
         const callUrl = 'https://demo.twilio.com/welcome/voice/';
         makeCall("+2347016724313", callUrl);
         res.status(201).send('Patient registered successfully');
