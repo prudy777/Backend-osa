@@ -209,10 +209,10 @@ app.post('/register',async (req, res) => {
  
 
         // Send email and WhatsApp notifications
-        const emailMessage = `Dear ${first_name} ${last_name},\n\nYour registration for the test has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
+        const emailMessage = `Dear Osamedic Diagnostics,\n\nThe registration for the Test Of ${first_name} ${last_name} has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
         sendEmail('ailemendaniel76@gmail.com', 'Test Registration Confirmation', emailMessage);
 
-        const smsMessage = `Dear ${first_name}, your registration for the test:(${test_type}) has been received successfully. Thank you.`;
+        const smsMessage = `Dear Osamedic Diagnostics,\n\nThe registration for the Test Of ${first_name} ${last_name} has been received successfully.\nTest Type: ${test_type}\n\nThank you`;
         sendSMS("+2347016724313", smsMessage);
 
         const callUrl = 'https://demo.twilio.com/welcome/voice/';
