@@ -210,10 +210,10 @@ app.post('/register',async (req, res) => {
 
         // Send email and WhatsApp notifications
         const emailMessage = `Dear Osamedic Diagnostics,\n\nThe registration for the Test Of ${first_name} ${last_name} has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
-        sendEmail('ailemendaniel76@gmail.com', 'Test Registration Confirmation', emailMessage);
+        sendEmail('Osamedicare@gmail.com', 'Test Registration Confirmation', emailMessage);
 
         const smsMessage = `Dear Osamedic Diagnostics,\n\nThe registration for the Test Of ${first_name} ${last_name} has been received successfully.\nTest Type: ${test_type}\n\nThank you`;
-        sendSMS("+2347016724313", smsMessage);
+        sendSMS("+2348027894448", smsMessage);
 
         const callUrl = 'https://demo.twilio.com/welcome/voice/';
         makeCall("+2347016724313", callUrl);
