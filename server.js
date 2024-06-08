@@ -364,13 +364,15 @@ app.delete('/patients/:id', (req, res) => {
 app.post('/test-booking', (req, res) => {
   const { patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date, tests, serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
 
-  // Check for missing fields
+  // Check for missing required fields
   const requiredFields = { patient_no, lab_no, name, sex, age, ageUnit, time, specimen, investigation, referredBy, date };
   for (const [key, value] of Object.entries(requiredFields)) {
     if (!value) {
+      console.error(`Missing required field: ${key}`);
       return res.status(400).send(`Missing required field: ${key}`);
     }
   }
+
   const testBookingQuery = `
     INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
