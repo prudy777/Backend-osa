@@ -10,8 +10,11 @@ const app = express();
 app.use(cors({
   origin: 'https://frontend-osa.onrender.com', // Allow requests from your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE','PATCH','HEAD'], // Specify allowed HTTP methods
-  credentials: true // If you need to send cookies or authentication headers
+  credentials: true ,// If you need to send cookies or authentication headers
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 }));
+
+app.use(cors(corsOptions));
 
 const db = new sqlite3.Database('./database.db');
 app.use(express.json());
