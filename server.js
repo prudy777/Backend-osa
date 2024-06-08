@@ -372,7 +372,6 @@ app.post('/test-booking', (req, res) => {
       return res.status(400).send(`Missing required field: ${key}`);
     }
   }
-
   const testBookingQuery = `
     INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
