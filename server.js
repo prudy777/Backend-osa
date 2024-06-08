@@ -1,5 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
@@ -158,6 +158,77 @@ db.serialize(() => {
       FOREIGN KEY (lab_no) REFERENCES lab_numbers(lab_no)
     )
   `);
+  db.run(
+    `CREATE TABLE IF NOT EXISTS serology (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER,
+    test TEXT,
+    methodology TEXT,
+    result TEXT,
+    FOREIGN KEY (patient_id) REFERENCES patients (id)
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS urinalysis (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER,
+    colour TEXT,
+    appearance TEXT,
+    pH TEXT,
+    specific_gravity TEXT,
+    urobilinogen TEXT,
+    leukocyte TEXT,
+    bilirubin TEXT,
+    blood TEXT,
+    nitrite TEXT,
+    protein TEXT,
+    glucose TEXT,
+    ketones TEXT,
+    comment TEXT,
+    FOREIGN KEY (patient_id) REFERENCES patients (id)
+  )`);
+  db.run(`CREATE TABLE  IF NOT EXISTS biochemistry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER,
+    bilirubin_total TEXT,
+    bilirubin_direct TEXT,
+    ast_sgot TEXT,
+    alt_sgpt TEXT,
+    alp TEXT,
+    albumin TEXT,
+    total_protein TEXT,
+    urea TEXT,
+    creatinine TEXT,
+    sodium TEXT,
+    potassium TEXT,
+    chloride TEXT,
+    bicarbonate TEXT,
+    total_cholesterol TEXT,
+    hdl TEXT,
+    ldl TEXT,
+    triglycerides TEXT,
+    vldl TEXT,
+    fasting_blood_sugar TEXT,
+    FOREIGN KEY (patient_id) REFERENCES patients (id)
+  )`);  
+  
+  // Create the Haematology table
+  db.run(`
+  CREATE TABLE IF NOT EXISTS Haematology (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    investigation TEXT NOT NULL,
+    result TEXT NOT NULL,
+    reference_range TEXT NOT NULL
+  )
+`);
+
+ // Create the ParasitologyTests table
+ db.run(`
+   CREATE TABLE IF NOT EXISTS ParasitologyTests (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     test TEXT NOT NULL,
+     methodology TEXT NOT NULL,
+     result TEXT NOT NULL
+   )
+ `);
 });
 
 // User registration endpoint
@@ -289,17 +360,22 @@ app.delete('/patients/:id', (req, res) => {
 
 // Endpoint to save test booking
 app.post('/test-booking', (req, res) => {
-  const { patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests } = req.body;
+  const { patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests, serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
+
   const testBookingQuery = `
     INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, age_unit, panel, referred_by, date)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
+
   db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date], function (err) {
     if (err) {
       console.error('Error saving test booking:', err);
       return res.status(500).send('Failed to save test booking');
     }
+
     const bookingId = this.lastID;
+
+    // Insert into test_details table
     const testDetailsQuery = `
       INSERT INTO test_details (booking_id, test_id, test_name, rate, price_naira, reference_range, interpretation)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -313,38 +389,152 @@ app.post('/test-booking', (req, res) => {
         }
       });
     }
-    stmt.finalize((err) => {
+    stmt.finalize();
+
+    // Insert into serology table
+    const serologyQuery = `
+      INSERT INTO serology (patient_id, test, methodology, result)
+      VALUES (?, ?, ?, ?)
+    `;
+    const serologyStmt = db.prepare(serologyQuery);
+    for (const test of serology) {
+      serologyStmt.run([patient_no, test.test, test.methodology, test.result], function (err) {
+        if (err) {
+          console.error('Error saving serology details:', err);
+          return res.status(500).send('Failed to save serology details');
+        }
+      });
+    }
+    serologyStmt.finalize();
+
+    // Insert into urinalysis table
+    const urinalysisQuery = `
+      INSERT INTO urinalysis (patient_id, colour, appearance, pH, specific_gravity, urobilinogen, leukocyte, bilirubin, blood, nitrite, protein, glucose, ketones, comment)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const urinalysisStmt = db.prepare(urinalysisQuery);
+    urinalysisStmt.run([patient_no, urinalysis.colour, urinalysis.appearance, urinalysis.pH, urinalysis.specific_gravity, urinalysis.urobilinogen, urinalysis.leukocyte, urinalysis.bilirubin, urinalysis.blood, urinalysis.nitrite, urinalysis.protein, urinalysis.glucose, urinalysis.ketones, urinalysis.comment], function (err) {
       if (err) {
-        console.error('Error finalizing test details statement:', err);
-        return res.status(500).send('Failed to finalize test details statement');
+        console.error('Error saving urinalysis details:', err);
+        return res.status(500).send('Failed to save urinalysis details');
       }
-      res.status(201).send('Test booking saved successfully');
     });
+    urinalysisStmt.finalize();
+
+    // Insert into biochemistry table
+    const biochemistryQuery = `
+      INSERT INTO biochemistry (patient_id, bilirubin_total, bilirubin_direct, ast_sgot, alt_sgpt, alp, albumin, total_protein, urea, creatinine, sodium, potassium, chloride, bicarbonate, total_cholesterol, hdl, ldl, triglycerides, vldl, fasting_blood_sugar)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const biochemistryStmt = db.prepare(biochemistryQuery);
+    biochemistryStmt.run([patient_no, biochemistry.bilirubin_total, biochemistry.bilirubin_direct, biochemistry.ast_sgot, biochemistry.alt_sgpt, biochemistry.alp, biochemistry.albumin, biochemistry.total_protein, biochemistry.urea, biochemistry.creatinine, biochemistry.sodium, biochemistry.potassium, biochemistry.chloride, biochemistry.bicarbonate, biochemistry.total_cholesterol, biochemistry.hdl, biochemistry.ldl, biochemistry.triglycerides, biochemistry.vldl, biochemistry.fasting_blood_sugar], function (err) {
+      if (err) {
+        console.error('Error saving biochemistry details:', err);
+        return res.status(500).send('Failed to save biochemistry details');
+      }
+    });
+    biochemistryStmt.finalize();
+
+    // Insert into haematology table
+    const haematologyQuery = `
+      INSERT INTO Haematology (investigation, result, reference_range)
+      VALUES (?, ?, ?)
+    `;
+    const haematologyStmt = db.prepare(haematologyQuery);
+    for (const test of haematology) {
+      haematologyStmt.run([test.investigation, test.result, test.reference_range], function (err) {
+        if (err) {
+          console.error('Error saving haematology details:', err);
+          return res.status(500).send('Failed to save haematology details');
+        }
+      });
+    }
+    haematologyStmt.finalize();
+
+    // Insert into parasitology table
+    const parasitologyQuery = `
+      INSERT INTO ParasitologyTests (test, methodology, result)
+      VALUES (?, ?, ?)
+    `;
+    const parasitologyStmt = db.prepare(parasitologyQuery);
+    for (const test of parasitology) {
+      parasitologyStmt.run([test.test, test.methodology, test.result], function (err) {
+        if (err) {
+          console.error('Error saving parasitology details:', err);
+          return res.status(500).send('Failed to save parasitology details');
+        }
+      });
+    }
+    parasitologyStmt.finalize();
+
+    res.status(201).send('Test booking saved successfully');
   });
 });
 
 // Endpoint to get all test bookings
 app.get('/test-bookings', (req, res) => {
   const query = `
-    SELECT tb.*, td.test_name, td.rate, td.price_naira, td.reference_range, td.interpretation
+    SELECT tb.*, 
+           td.test_name, td.rate, td.price_naira, td.reference_range, td.interpretation,
+           s.test AS serology_test, s.methodology AS serology_methodology, s.result AS serology_result,
+           u.colour, u.appearance, u.pH, u.specific_gravity, u.urobilinogen, u.leukocyte, u.bilirubin, u.blood, u.nitrite, u.protein, u.glucose, u.ketones, u.comment,
+           b.bilirubin_total, b.bilirubin_direct, b.ast_sgot, b.alt_sgpt, b.alp, b.albumin, b.total_protein, b.urea, b.creatinine, b.sodium, b.potassium, b.chloride, b.bicarbonate, b.total_cholesterol, b.hdl, b.ldl, b.triglycerides, b.vldl, b.fasting_blood_sugar,
+           h.investigation AS haematology_investigation, h.result AS haematology_result, h.reference_range AS haematology_reference_range,
+           p.test AS parasitology_test, p.methodology AS parasitology_methodology, p.result AS parasitology_result
     FROM test_bookings tb
     LEFT JOIN test_details td ON tb.id = td.booking_id
+    LEFT JOIN serology s ON tb.patient_no = s.patient_id
+    LEFT JOIN urinalysis u ON tb.patient_no = u.patient_id
+    LEFT JOIN biochemistry b ON tb.patient_no = b.patient_id
+    LEFT JOIN haematology h ON tb.patient_no = h.patient_id
+    LEFT JOIN parasitology p ON tb.patient_no = p.patient_id
   `;
   db.all(query, [], (err, rows) => {
     if (err) {
       console.error('Error retrieving test bookings:', err);
       return res.status(500).send('Failed to retrieve test bookings');
     }
+
     const bookings = rows.reduce((acc, row) => {
       const booking = acc.find(b => b.id === row.id);
       if (booking) {
-        booking.tests.push({
-          test_name: row.test_name,
-          rate: row.rate,
-          price_naira: row.price_naira,
-          reference_range: row.reference_range,
-          interpretation: row.interpretation
-        });
+        // Append test details
+        if (row.test_name) {
+          booking.tests.push({
+            test_name: row.test_name,
+            rate: row.rate,
+            price_naira: row.price_naira,
+            reference_range: row.reference_range,
+            interpretation: row.interpretation
+          });
+        }
+
+        // Append serology details
+        if (row.serology_test) {
+          booking.serology.push({
+            test: row.serology_test,
+            methodology: row.serology_methodology,
+            result: row.serology_result
+          });
+        }
+
+        // Append haematology details
+        if (row.haematology_investigation) {
+          booking.haematology.push({
+            investigation: row.haematology_investigation,
+            result: row.haematology_result,
+            reference_range: row.haematology_reference_range
+          });
+        }
+
+        // Append parasitology details
+        if (row.parasitology_test) {
+          booking.parasitology.push({
+            test: row.parasitology_test,
+            methodology: row.parasitology_methodology,
+            result: row.parasitology_result
+          });
+        }
       } else {
         acc.push({
           id: row.id,
@@ -357,17 +547,69 @@ app.get('/test-bookings', (req, res) => {
           panel: row.panel,
           referred_by: row.referred_by,
           date: row.date,
-          tests: [{
+          tests: row.test_name ? [{
             test_name: row.test_name,
             rate: row.rate,
             price_naira: row.price_naira,
             reference_range: row.reference_range,
             interpretation: row.interpretation
-          }]
+          }] : [],
+          serology: row.serology_test ? [{
+            test: row.serology_test,
+            methodology: row.serology_methodology,
+            result: row.serology_result
+          }] : [],
+          urinalysis: {
+            colour: row.colour,
+            appearance: row.appearance,
+            pH: row.pH,
+            specific_gravity: row.specific_gravity,
+            urobilinogen: row.urobilinogen,
+            leukocyte: row.leukocyte,
+            bilirubin: row.bilirubin,
+            blood: row.blood,
+            nitrite: row.nitrite,
+            protein: row.protein,
+            glucose: row.glucose,
+            ketones: row.ketones,
+            comment: row.comment
+          },
+          biochemistry: {
+            bilirubin_total: row.bilirubin_total,
+            bilirubin_direct: row.bilirubin_direct,
+            ast_sgot: row.ast_sgot,
+            alt_sgpt: row.alt_sgpt,
+            alp: row.alp,
+            albumin: row.albumin,
+            total_protein: row.total_protein,
+            urea: row.urea,
+            creatinine: row.creatinine,
+            sodium: row.sodium,
+            potassium: row.potassium,
+            chloride: row.chloride,
+            bicarbonate: row.bicarbonate,
+            total_cholesterol: row.total_cholesterol,
+            hdl: row.hdl,
+            ldl: row.ldl,
+            triglycerides: row.triglycerides,
+            vldl: row.vldl,
+            fasting_blood_sugar: row.fasting_blood_sugar
+          },
+          haematology: row.haematology_investigation ? [{
+            investigation: row.haematology_investigation,
+            result: row.haematology_result,
+            reference_range: row.haematology_reference_range
+          }] : [],
+          parasitology: row.parasitology_test ? [{
+            test: row.parasitology_test,
+            methodology: row.parasitology_methodology,
+            result: row.parasitology_result
+          }] : []
         });
       }
       return acc;
     }, []);
+
     res.status(200).json(bookings);
   });
 });
@@ -392,83 +634,129 @@ app.delete('/test-bookings/:id', (req, res) => {
 
 // Endpoint to save printed test
 app.post('/printed-tests', (req, res) => {
-  const { patient_id, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests } = req.body;
+  const { patient_id, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests, serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
+
   const printedTestQuery = `
     INSERT INTO printed_tests (patient_id, lab_no, name, sex, age, age_unit, panel, referred_by, date, test_name, rate, price_naira, reference_range, interpretation)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
+
   const stmt = db.prepare(printedTestQuery);
-  for (const test of tests) {
-    stmt.run([patient_id, lab_no, name, sex, age, ageUnit, panel, referredBy, date, test.name, test.rate, test.rate, test.referenceRange, test.interpretation], function (err) {
+
+  let hasError = false;
+
+  tests.forEach(test => {
+    stmt.run([
+      patient_id, lab_no, name, sex, age, ageUnit, panel, referredBy, date,
+      test.name, test.rate, test.rate, test.referenceRange, test.interpretation
+    ], function (err) {
       if (err) {
         console.error('Error saving printed test:', err);
+        hasError = true;
         return res.status(500).send('Failed to save printed test');
       }
     });
-  }
-  stmt.finalize((err) => {
+  });
+
+  stmt.finalize(err => {
     if (err) {
       console.error('Error finalizing printed test statement:', err);
       return res.status(500).send('Failed to finalize printed test statement');
     }
-    res.status(201).send('Printed test saved successfully');
+    
+    if (!hasError) {
+      // Insert into serology table
+      const serologyQuery = `
+        INSERT INTO serology (patient_id, test, methodology, result)
+        VALUES (?, ?, ?, ?)
+      `;
+      const serologyStmt = db.prepare(serologyQuery);
+      for (const test of serology) {
+        serologyStmt.run([patient_id, test.test, test.methodology, test.result], function (err) {
+          if (err) {
+            console.error('Error saving serology details:', err);
+            return res.status(500).send('Failed to save serology details');
+          }
+        });
+      }
+      serologyStmt.finalize();
+
+      // Insert into urinalysis table
+      const urinalysisQuery = `
+        INSERT INTO urinalysis (patient_id, colour, appearance, pH, specific_gravity, urobilinogen, leukocyte, bilirubin, blood, nitrite, protein, glucose, ketones, comment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      const urinalysisStmt = db.prepare(urinalysisQuery);
+      urinalysisStmt.run([patient_id, urinalysis.colour, urinalysis.appearance, urinalysis.pH, urinalysis.specific_gravity, urinalysis.urobilinogen, urinalysis.leukocyte, urinalysis.bilirubin, urinalysis.blood, urinalysis.nitrite, urinalysis.protein, urinalysis.glucose, urinalysis.ketones, urinalysis.comment], function (err) {
+        if (err) {
+          console.error('Error saving urinalysis details:', err);
+          return res.status(500).send('Failed to save urinalysis details');
+        }
+      });
+      urinalysisStmt.finalize();
+
+      // Insert into biochemistry table
+      const biochemistryQuery = `
+        INSERT INTO biochemistry (patient_id, bilirubin_total, bilirubin_direct, ast_sgot, alt_sgpt, alp, albumin, total_protein, urea, creatinine, sodium, potassium, chloride, bicarbonate, total_cholesterol, hdl, ldl, triglycerides, vldl, fasting_blood_sugar)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      const biochemistryStmt = db.prepare(biochemistryQuery);
+      biochemistryStmt.run([patient_id, biochemistry.bilirubin_total, biochemistry.bilirubin_direct, biochemistry.ast_sgot, biochemistry.alt_sgpt, biochemistry.alp, biochemistry.albumin, biochemistry.total_protein, biochemistry.urea, biochemistry.creatinine, biochemistry.sodium, biochemistry.potassium, biochemistry.chloride, biochemistry.bicarbonate, biochemistry.total_cholesterol, biochemistry.hdl, biochemistry.ldl, biochemistry.triglycerides, biochemistry.vldl, biochemistry.fasting_blood_sugar], function (err) {
+        if (err) {
+          console.error('Error saving biochemistry details:', err);
+          return res.status(500).send('Failed to save biochemistry details');
+        }
+      });
+      biochemistryStmt.finalize();
+
+      // Insert into haematology table
+      const haematologyQuery = `
+        INSERT INTO haematology (patient_id, investigation, result, reference_range)
+        VALUES (?, ?, ?, ?)
+      `;
+      const haematologyStmt = db.prepare(haematologyQuery);
+      for (const test of haematology) {
+        haematologyStmt.run([patient_id, test.investigation, test.result, test.reference_range], function (err) {
+          if (err) {
+            console.error('Error saving haematology details:', err);
+            return res.status(500).send('Failed to save haematology details');
+          }
+        });
+      }
+      haematologyStmt.finalize();
+
+      // Insert into parasitology table
+      const parasitologyQuery = `
+        INSERT INTO parasitology (patient_id, test, methodology, result)
+        VALUES (?, ?, ?, ?)
+      `;
+      const parasitologyStmt = db.prepare(parasitologyQuery);
+      for (const test of parasitology) {
+        parasitologyStmt.run([patient_id, test.test, test.methodology, test.result], function (err) {
+          if (err) {
+            console.error('Error saving parasitology details:', err);
+            return res.status(500).send('Failed to save parasitology details');
+          }
+        });
+      }
+      parasitologyStmt.finalize();
+
+      res.status(201).send('Printed test and all related details saved successfully');
+    }
   });
 });
 
-// Endpoint to get all printed tests
-app.get('/printed-tests', (req, res) => {
-  const query = `
-    SELECT pt.*, p.first_name, p.last_name, p.dob, p.email, p.phone
-    FROM printed_tests pt
-    LEFT JOIN patients p ON pt.patient_id = p.patient_no
-  `;
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      console.error('Error retrieving printed tests:', err);
-      return res.status(500).send('Failed to retrieve printed tests');
-    }
-    const printedTests = rows.reduce((acc, row) => {
-      const test = {
-        test_id: row.test_id,
-        name: row.name,
-        sex: row.sex,
-        age: row.age,
-        age_unit: row.age_unit,
-        panel: row.panel,
-        referred_by: row.referred_by,
-        date: row.date,
-        test_name: row.test_name,
-        rate: row.rate,
-        price_naira: row.price_naira,
-        reference_range: row.reference_range,
-        interpretation: row.interpretation
-      };
-      const patient = acc.find(p => p.patient_no === row.patient_id);
-      if (patient) {
-        patient.tests.push(test);
-      } else {
-        acc.push({
-          patient_no: row.patient_id,
-          first_name: row.first_name,
-          last_name: row.last_name,
-          dob: row.dob,
-          email: row.email,
-          phone: row.phone,
-          tests: [test]
-        });
-      }
-      return acc;
-    }, []);
-    res.status(200).json(printedTests);
-  });
-});
  // Save printed tests
 app.post('/masters', (req, res) => {
   const { tests } = req.body;
-  const stmt = db.prepare(`
+
+  const masterInsertQuery = `
     INSERT INTO printed_tests (test_id, patient_id, lab_no, name, sex, age, age_unit, panel, referred_by, date, test_name, rate, price_naira, reference_range, interpretation)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  `;
+  
+  const stmt = db.prepare(masterInsertQuery);
+  let hasError = false;
 
   tests.forEach(test => {
     stmt.run([
@@ -487,16 +775,101 @@ app.post('/masters', (req, res) => {
       test.price_naira,
       test.reference_range,
       test.interpretation,
-    ]);
+    ], function (err) {
+      if (err) {
+        console.error('Error saving printed tests:', err);
+        hasError = true;
+        return res.status(500).send('Failed to save printed tests');
+      }
+    });
   });
 
   stmt.finalize(err => {
     if (err) {
-      console.error('Error saving printed tests:', err);
-      res.status(500).send('Error saving printed tests');
-      return;
+      console.error('Error finalizing printed tests statement:', err);
+      return res.status(500).send('Failed to finalize printed tests statement');
     }
-    res.status(201).send('Printed tests saved successfully');
+    if (!hasError) {
+      const { serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
+
+      // Insert into serology table
+      const serologyQuery = `
+        INSERT INTO serology (patient_id, test, methodology, result)
+        VALUES (?, ?, ?, ?)
+      `;
+      const serologyStmt = db.prepare(serologyQuery);
+      for (const test of serology) {
+        serologyStmt.run([test.patient_id, test.test, test.methodology, test.result], function (err) {
+          if (err) {
+            console.error('Error saving serology details:', err);
+            return res.status(500).send('Failed to save serology details');
+          }
+        });
+      }
+      serologyStmt.finalize();
+
+      // Insert into urinalysis table
+      const urinalysisQuery = `
+        INSERT INTO urinalysis (patient_id, colour, appearance, pH, specific_gravity, urobilinogen, leukocyte, bilirubin, blood, nitrite, protein, glucose, ketones, comment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      const urinalysisStmt = db.prepare(urinalysisQuery);
+      urinalysisStmt.run([urinalysis.patient_id, urinalysis.colour, urinalysis.appearance, urinalysis.pH, urinalysis.specific_gravity, urinalysis.urobilinogen, urinalysis.leukocyte, urinalysis.bilirubin, urinalysis.blood, urinalysis.nitrite, urinalysis.protein, urinalysis.glucose, urinalysis.ketones, urinalysis.comment], function (err) {
+        if (err) {
+          console.error('Error saving urinalysis details:', err);
+          return res.status(500).send('Failed to save urinalysis details');
+        }
+      });
+      urinalysisStmt.finalize();
+
+      // Insert into biochemistry table
+      const biochemistryQuery = `
+        INSERT INTO biochemistry (patient_id, bilirubin_total, bilirubin_direct, ast_sgot, alt_sgpt, alp, albumin, total_protein, urea, creatinine, sodium, potassium, chloride, bicarbonate, total_cholesterol, hdl, ldl, triglycerides, vldl, fasting_blood_sugar)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      const biochemistryStmt = db.prepare(biochemistryQuery);
+      biochemistryStmt.run([biochemistry.patient_id, biochemistry.bilirubin_total, biochemistry.bilirubin_direct, biochemistry.ast_sgot, biochemistry.alt_sgpt, biochemistry.alp, biochemistry.albumin, biochemistry.total_protein, biochemistry.urea, biochemistry.creatinine, biochemistry.sodium, biochemistry.potassium, biochemistry.chloride, biochemistry.bicarbonate, biochemistry.total_cholesterol, biochemistry.hdl, biochemistry.ldl, biochemistry.triglycerides, biochemistry.vldl, biochemistry.fasting_blood_sugar], function (err) {
+        if (err) {
+          console.error('Error saving biochemistry details:', err);
+          return res.status(500).send('Failed to save biochemistry details');
+        }
+      });
+      biochemistryStmt.finalize();
+
+      // Insert into haematology table
+      const haematologyQuery = `
+        INSERT INTO haematology (patient_id, investigation, result, reference_range)
+        VALUES (?, ?, ?, ?)
+      `;
+      const haematologyStmt = db.prepare(haematologyQuery);
+      for (const test of haematology) {
+        haematologyStmt.run([test.patient_id, test.investigation, test.result, test.reference_range], function (err) {
+          if (err) {
+            console.error('Error saving haematology details:', err);
+            return res.status(500).send('Failed to save haematology details');
+          }
+        });
+      }
+      haematologyStmt.finalize();
+
+      // Insert into parasitology table
+      const parasitologyQuery = `
+        INSERT INTO parasitology (patient_id, test, methodology, result)
+        VALUES (?, ?, ?, ?)
+      `;
+      const parasitologyStmt = db.prepare(parasitologyQuery);
+      for (const test of parasitology) {
+        parasitologyStmt.run([test.patient_id, test.test, test.methodology, test.result], function (err) {
+          if (err) {
+            console.error('Error saving parasitology details:', err);
+            return res.status(500).send('Failed to save parasitology details');
+          }
+        });
+      }
+      parasitologyStmt.finalize();
+
+      res.status(201).send('Printed tests and all related details saved successfully');
+    }
   });
 });
 
