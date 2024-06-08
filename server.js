@@ -360,7 +360,7 @@ app.delete('/patients/:id', (req, res) => {
 
 // Endpoint to save test booking
 app.post('/test-booking', (req, res) => {
-  const { patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests, serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
+  const { patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests } = req.body;
 
   const testBookingQuery = `
     INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, age_unit, panel, referred_by, date)
