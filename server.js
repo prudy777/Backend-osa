@@ -8,7 +8,7 @@ const twilio = require('twilio');
 require('dotenv').config();
 const app = express();
 app.use(cors({
-  origin: 'https://frontend-osa.onrender.com/', // Allow requests from your frontend URL
+  origin: 'https://frontend-osa.onrender.com', // Allow requests from your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE','PATCH','HEAD'], // Specify allowed HTTP methods
   credentials: true // If you need to send cookies or authentication headers
 }));
