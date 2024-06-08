@@ -362,21 +362,23 @@ app.delete('/patients/:id', (req, res) => {
 
 // Endpoint to save test booking
 app.post('/test-booking', (req, res) => {
-  const { patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date, tests, serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
+  console.log('Received request body:', req.body);
+  const { patient_no, lab_no, name, sex, age, ageUnit, time, specimen, investigation, referredBy, date, tests, serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
 
-  // Check for missing fields
-  const requiredFields = { patient_no, lab_no, name, sex, age, ageUnit, time, specimen, investigation, referredBy, date };
-  for (const [key, value] of Object.entries(requiredFields)) {
-    if (!value) {
-      return res.status(400).send(`Missing required field: ${key}`);
-    }
+  // Define required fields
+  const requiredFields = ['patient_no', 'lab_no', 'name', 'sex', 'age', 'ageUnit', 'time', 'specimen', 'investigation', 'referredBy', 'date'];
+  // Check for missing required fields
+  const missingFields = requiredFields.filter(field => !req.body[field]);
+  if (missingFields.length > 0) {
+    return res.status(400).send(`Missing required fields: ${missingFields.join(', ')}`);
   }
+
   const testBookingQuery = `
-    INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date )
+    INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, ageUnit, time, specimen, investigation, referredBy, date)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date ], function (err) {
+  db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, time, specimen, investigation, referredBy, date], function (err) {
     if (err) {
       console.error('Error saving test booking:', err);
       return res.status(500).send('Failed to save test booking');
