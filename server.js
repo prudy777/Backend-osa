@@ -7,10 +7,9 @@ const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 require('dotenv').config();
 const app = express();
-
 app.use(cors({
   origin: 'https://frontend-osa.onrender.com', // Allow requests from your frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD'], // Specify allowed HTTP methods
+  methods: ['GET', 'POST', 'PUT', 'DELETE','PATCH','HEAD'], // Specify allowed HTTP methods
   credentials: true // If you need to send cookies or authentication headers
 }));
 
@@ -362,15 +361,13 @@ app.delete('/patients/:id', (req, res) => {
 });
 
 // Endpoint to save test booking
-app.post('/test-booking', async (req, res) => {
-  console.log("RECIEVED REQUEST")
+app.post('/test-booking', (req, res) => {
   const { patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date, tests, serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
 
-  // Check for missing required fields
+  // Check for missing fields
   const requiredFields = { patient_no, lab_no, name, sex, age, ageUnit, time, specimen, investigation, referredBy, date };
   for (const [key, value] of Object.entries(requiredFields)) {
     if (!value) {
-      console.error(`Missing required field: ${key}`);
       return res.status(400).send(`Missing required field: ${key}`);
     }
   }
