@@ -96,21 +96,23 @@ db.serialize(() => {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS test_bookings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      patient_no INTEGER,
-      lab_no INTEGER,
-      name TEXT,
-      sex TEXT,
-      age TEXT,
-      age_unit TEXT,
-      panel TEXT,
-      referred_by TEXT,
-      date TEXT,
-      FOREIGN KEY (patient_no) REFERENCES patients(patient_no),
-      FOREIGN KEY (lab_no) REFERENCES lab_numbers(lab_no)
-    )
-  `);
+  CREATE TABLE IF NOT EXISTS test_bookings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_no INTEGER,
+    lab_no INTEGER,
+    name TEXT,
+    sex TEXT,
+    age TEXT,
+    ageUnit TEXT,
+    time TEXT,
+    specimen TEXT,
+    investigation TEXT,
+    referredBy TEXT,
+    date TEXT,
+    FOREIGN KEY (patient_no) REFERENCES patients(patient_no),
+    FOREIGN KEY (lab_no) REFERENCES lab_numbers(lab_no)
+  )
+`,);
 
   db.run(`
     CREATE TABLE IF NOT EXISTS test_details (
@@ -360,14 +362,14 @@ app.delete('/patients/:id', (req, res) => {
 
 // Endpoint to save test booking
 app.post('/test-booking', (req, res) => {
-  const { patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date, tests } = req.body;
+  const { patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date, tests, serology, urinalysis, biochemistry, haematology, parasitology } = req.body;
 
   const testBookingQuery = `
-    INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, age_unit, panel, referred_by, date)
+    INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date, )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, panel, referredBy, date], function (err) {
+  db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date, ], function (err) {
     if (err) {
       console.error('Error saving test booking:', err);
       return res.status(500).send('Failed to save test booking');
