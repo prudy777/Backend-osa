@@ -44,39 +44,32 @@ const createTables = () => {
       `, (err) => {
         if (err) console.error('Error creating lab_numbers table:', err.message);
       });
-
-      db.run(`DROP TABLE IF EXISTS test_bookings`, (err) => {
-        if (err) {
-          console.error('Error dropping test_bookings table:', err.message);
-          return;
-        }
-      
         // Create the new table with the specified columns
-        db.run(`
-          CREATE TABLE IF NOT EXISTS test_bookings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_no INTEGER,
-            lab_no INTEGER,
-            name TEXT,
-            sex TEXT,
-            age TEXT,
-            ageUnit TEXT,
-            time TEXT,
-            specimen TEXT,
-            investigation TEXT,
-            referredBy TEXT,
-            date TEXT,
-            FOREIGN KEY (patient_no) REFERENCES patients(patient_no),
-            FOREIGN KEY (lab_no) REFERENCES lab_numbers(lab_no)
-          )
-        `, (err) => {
+        
+  db.run(`
+  CREATE TABLE IF NOT EXISTS test_bookings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_no INTEGER,
+    lab_no INTEGER,
+    name TEXT,
+    sex TEXT,
+    age TEXT,
+    ageUnit TEXT,
+    time TEXT,
+    specimen TEXT,
+    investigation TEXT,
+    referredBy TEXT,
+    date TEXT,
+    FOREIGN KEY (patient_no) REFERENCES patients(patient_no),
+    FOREIGN KEY (lab_no) REFERENCES lab_numbers(lab_no)
+  )
+`, (err) => {
           if (err) {
             console.error('Error creating test_bookings table:', err.message);
           } else {
             console.log('test_bookings table created successfully');
           }
         });
-      });
 
       db.run(`
         CREATE TABLE IF NOT EXISTS test_details (

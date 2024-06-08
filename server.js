@@ -369,7 +369,7 @@ app.post('/test-booking', (req, res) => {
   }
   const testBookingQuery = `
     INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date ], function (err) {
