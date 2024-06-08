@@ -368,11 +368,11 @@ app.post('/test-booking', (req, res) => {
     return res.status(400).send('Missing required fields');
   }
   const testBookingQuery = `
-    INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date, )
+    INSERT INTO test_bookings (patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date, ], function (err) {
+  db.run(testBookingQuery, [patient_no, lab_no, name, sex, age, ageUnit, time,specimen,investigation, referredBy, date ], function (err) {
     if (err) {
       console.error('Error saving test booking:', err);
       return res.status(500).send('Failed to save test booking');
