@@ -20,7 +20,7 @@ const createTables = () => {
       `, (err) => {
         if (err) console.error('Error creating users table:', err.message);
       });
-
+      
       db.run(`
         CREATE TABLE IF NOT EXISTS patients (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,24 +101,25 @@ const createTables = () => {
       });
 
       db.run(`
-        CREATE TABLE IF NOT EXISTS printed_tests (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          test_id TEXT,
-          patient_id INTEGER,
-          lab_no INTEGER,
-          name TEXT,
-          sex TEXT,
-          age TEXT,
-          age_unit TEXT,
-          panel TEXT,
-          referred_by TEXT,
-          date TEXT,
-          test_name TEXT,
-          rate REAL,
-          price_naira REAL,
-          reference_range TEXT,
-          interpretation TEXT
-        )
+      CREATE TABLE IF NOT EXISTS printed_tests (
+        test_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        patient_id INTEGER,
+        lab_no INTEGER,
+        name TEXT,
+        sex TEXT,
+        age TEXT,
+        age_unit TEXT,
+        panel TEXT,
+        referred_by TEXT,
+        date TEXT,
+        test_name TEXT,
+        rate REAL,
+        price_naira REAL,
+        reference_range TEXT,
+        interpretation TEXT,
+        FOREIGN KEY (patient_id) REFERENCES patients(patient_no),
+        FOREIGN KEY (lab_no) REFERENCES lab_numbers(lab_no)
+      )
       `, (err) => {
         if (err) console.error('Error creating printed_tests table:', err.message);
       });
@@ -164,7 +165,9 @@ const createTables = () => {
           console.error('Error creating urinalysis table:', err.message);
         }
       });
-
+     
+      db.run(`ALTER TABLE urinalysis ADD COLUMN patient_no TEXT;
+      `);
       db.run(`
         CREATE TABLE IF NOT EXISTS biochemistry (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,6 +198,8 @@ const createTables = () => {
           console.error('Error creating biochemistry table:', err.message);
         }
       });
+      db.run(`ALTER TABLE biochemistry ADD COLUMN patient_no TEXT;
+      `);
 
       db.run(`
         CREATE TABLE IF NOT EXISTS Haematology (
@@ -208,6 +213,33 @@ const createTables = () => {
           console.error('Error creating Haematology table:', err.message);
         }
       });
+      const tablesToCheck = ['serology', 'haematology', 'parasitologyTests', 'biochemistry'];
+
+db.serialize(() => {
+  db.run(`PRAGMA foreign_keys=OFF;`);
+
+  tablesToCheck.forEach(tableName => {
+    db.get(`PRAGMA table_info(${tableName});`, (err, tableInfo) => {
+      if (err) {
+        console.error(`Error retrieving table info for ${tableName}:`, err);
+        return;
+      }
+
+      const columns = tableInfo.map(column => column.name);
+      if (!columns.includes('patient_no')) {
+        db.run(`ALTER TABLE ${tableName} ADD COLUMN patient_no TEXT;`, (err) => {
+          if (err) {
+            console.error(`Error adding patient_no column to ${tableName}:`, err);
+          } else {
+            console.log(`patient_no column added successfully to ${tableName}`);
+          }
+        });
+      }
+    });
+  });
+
+  db.run(`PRAGMA foreign_keys=ON;`);
+});
 
       db.run(`
         CREATE TABLE IF NOT EXISTS ParasitologyTests (
