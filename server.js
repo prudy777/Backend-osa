@@ -69,6 +69,7 @@ const makeCall = (to, url) => {
 
 // Create tables for users, patients, and test bookings
 db.serialize(() => {
+  db.run(`DROP TABLE IF EXISTS users`);
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,6 +92,17 @@ db.serialize(() => {
     )
   `);
 
+  db.run(`CREATE TABLE IF NOT EXISTS contact_form (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    email TEXT,
+    phone TEXT,
+    message TEXT,
+    consent INTEGER DEFAULT 0,
+    submission_time DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+ 
   db.run(`
     CREATE TABLE IF NOT EXISTS lab_numbers (
       lab_no INTEGER PRIMARY KEY AUTOINCREMENT
@@ -236,7 +248,18 @@ db.run(`DROP TABLE IF EXISTS test_details`)
     reference_range TEXT NOT NULL
   )
 `);
-
+db.run(`ALTER TABLE patients ADD COLUMN home_service TEXT;
+ TEXT`, (err) => {
+  if (err) {
+    if (err.message.includes("duplicate column name")) {
+      console.log("Column 'home service' already exists.");
+    } else {
+      console.error("Error adding 'home service' column:", err);
+    }
+  } else {
+    console.log("'home service' column added successfully.");
+  }
+});
  // Create the ParasitologyTests table
  db.run(`
    CREATE TABLE IF NOT EXISTS ParasitologyTests (
@@ -278,41 +301,79 @@ app.post('/login', (req, res) => {
 });
 
 // Patient registration endpoint
-app.post('/register',async (req, res) => {
-  const { first_name, last_name, dob, email, phone, test_type } = req.body;
+app.post('/register', async (req, res) => {
+  const {
+    first_name,
+    last_name,
+    dob,
+    email,
+    phone,
+    test_type,
+    sex,
+    home_service,
+    visit_time,
+    payment_mode,
+    test_submission_time,
+  } = req.body;
 
-  db.run('INSERT INTO patients (first_name, last_name, dob, email, phone, test_type) VALUES (?, ?, ?, ?, ?, ?)', 
-    [first_name, last_name, dob, email, phone, test_type], 
-    function (err) {
-      if (err) {
-        return res.status(500).send('Registration failed due to server error');
-      }
-
-      const patientId = this.lastID;
-    
-      // Update the patient_no with the same value as the id
-      db.run('UPDATE patients SET patient_no = ? WHERE id = ?', [patientId, patientId], function (err) {
+  try {
+    // Insert patient data into the database
+    db.run(
+      'INSERT INTO patients (first_name, last_name, dob, email, phone, test_type, sex, home_service, visit_time, payment_mode, test_submission_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        first_name,
+        last_name,
+        dob,
+        email,
+        phone,
+        test_type,
+        sex,
+        home_service,
+        visit_time || null, // If home_service is "No", visit_time will be null
+        payment_mode,
+        test_submission_time,
+      ],
+      function (err) {
         if (err) {
-          return res.status(500).send('Failed to set patient number');
+          console.error('Error inserting patient data:', err);
+          return res.status(500).send('Registration failed due to server error');
         }
- 
 
-        // Send email and WhatsApp notifications
-        const emailMessage = `Dear Osamedic Diagnostics,\n\nThe registration for the Test Of ${first_name} ${last_name} has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
-        sendEmail('Osamedicare@gmail.com', 'Test Registration Confirmation', emailMessage);
+        const patientId = this.lastID;
 
-        const smsMessage = `Dear Osamedic Diagnostics,\n\nThe registration for the Test Of ${first_name} ${last_name} has been received successfully.\nTest Type: ${test_type}\n\nThank you`;
-        sendSMS("+2348027894448", smsMessage);
+        // Update the patient_no with the same value as the id
+        db.run('UPDATE patients SET patient_no = ? WHERE id = ?', [patientId, patientId], function (err) {
+          if (err) {
+            console.error('Error updating patient number:', err);
+            return res.status(500).send('Failed to set patient number');
+          }
 
-        const callUrl = 'https://demo.twilio.com/welcome/voice/';
-        makeCall("+2347016724313", callUrl);
-        res.status(201).send('Patient registered successfully');
-      });
-    });
+          // Send email and WhatsApp notifications to Osamedic Diagnostics
+          const emailMessage = `Dear Osamedic Diagnostics,\n\nThe registration for the Test Of ${first_name} ${last_name} has been received successfully.\nTest Type: ${test_type}\n\nThank you.`;
+          sendEmail('ailemendaniel76@gmail.com', 'Test Registration Confirmation', emailMessage);
+
+          const smsMessage = `Dear Osamedic Diagnostics,\n\nThe registration for the Test Of ${first_name} ${last_name} has been received successfully.\nTest Type: ${test_type}\n\nThank you`;
+          sendSMS("+2348027894448", smsMessage);
+
+          const callUrl = 'https://demo.twilio.com/welcome/voice/';
+          makeCall("+2347016724313", callUrl);
+
+          // Send email to the client confirming test registration
+          const clientEmailMessage = `Dear ${first_name} ${last_name},\n\nYour registration for the ${test_type} test has been received successfully.\nOur team will process your test shortly.\n\nThank you for choosing Osamedic Diagnostics.`;
+          sendEmail(email, 'Your Test Registration Confirmation', clientEmailMessage);
+
+          res.status(201).send('Patient registered successfully');
+        });
+      }
+    );
+  } catch (err) {
+    console.error('Unexpected error during registration:', err);
+    res.status(500).send('An unexpected error occurred during registration');
+  }
 });
 
 
-// Endpoint to get list of patients
+//Endpoint to get list of all patients
 app.get('/patients', (req, res) => {
   db.all('SELECT * FROM patients', [], (err, rows) => {
     if (err) {
@@ -325,7 +386,7 @@ app.get('/patients', (req, res) => {
 // Endpoint to get a specific patient's details
 app.get('/patients/:id', (req, res) => {
   const { id } = req.params;
-  db.get('SELECT * FROM patients WHERE id = ?', [id], (err, row) => {
+  db.get('SELECT id, first_name, last_name, dob, email, phone, test_type, status, sex, home_service FROM patients WHERE id = ?', [id], (err, row) => {
     if (err) {
       console.error('Error fetching patient details:', err);
       return res.status(500).send('Failed to fetch patient details');
@@ -364,6 +425,19 @@ app.put('/patients/:id/status', (req, res) => {
   });
 });
 
+// Endpoint to update patient payment status
+app.put('/patients/:id/payment-status', (req, res) => {
+  const { id } = req.params;
+  const { paymentStatus } = req.body;
+  db.run('UPDATE patients SET payment_status = ? WHERE id = ?', [paymentStatus, id], function (err) {
+    if (err) {
+      console.error('Error updating payment status:', err);
+      return res.status(500).send('Failed to update payment status');
+    }
+    res.status(200).send('Payment status updated successfully');
+  });
+});
+
 // Endpoint to delete a patient
 app.delete('/patients/:id', (req, res) => {
   const { id } = req.params;
@@ -375,7 +449,7 @@ app.delete('/patients/:id', (req, res) => {
     res.status(200).send('Patient deleted successfully');
   });
 });
-// Endpoint to save test booking
+
 // Endpoint to save test booking
 app.post('/test-booking', (req, res) => {
   console.log('Received request body:', req.body);
@@ -509,6 +583,43 @@ app.post('/test-booking', (req, res) => {
   });
 });
 
+// Endpoint to delete test booking by IDs
+app.post('/test-booking/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  const runQuery = (query, params) => {
+    return new Promise((resolve, reject) => {
+      db.run(query, params, function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  };
+
+  try {
+    await runQuery('BEGIN TRANSACTION');
+    
+    await runQuery('DELETE FROM test_bookings WHERE test_id = ?', [id]);
+    await runQuery('DELETE FROM test_details WHERE booking_id = ?', [id]);
+    await runQuery('DELETE FROM serology WHERE id = ?', [id]);
+    await runQuery('DELETE FROM urinalysis WHERE id = ?', [id]);
+    await runQuery('DELETE FROM biochemistry WHERE id = ?', [id]);
+    await runQuery('DELETE FROM Haematology WHERE id = ?', [id]);
+    await runQuery('DELETE FROM ParasitologyTests WHERE id = ?', [id]);
+
+    await runQuery('COMMIT');
+    res.status(200).send('Test booking deleted successfully');
+  } catch (err) {
+    await runQuery('ROLLBACK');
+    console.error('Error deleting test booking:', err);
+    res.status(500).send('Failed to delete test booking');
+  }
+});
+
+
 // Endpoint to get all test bookings
 app.get('/test-bookings', (req, res) => {
   const query = `
@@ -626,7 +737,7 @@ app.get('/test-bookings', (req, res) => {
 // Endpoint to delete a test booking
 app.delete('/test-bookings/:id', (req, res) => {
   const { id } = req.params;
-  db.run('DELETE FROM test_bookings WHERE id = ?', id, function (err) {
+  db.run('DELETE FROM test_bookings WHERE test_id = ?', id, function (err) {
     if (err) {
       console.error('Error deleting test booking:', err);
       return res.status(500).send('Failed to delete test booking');
@@ -641,9 +752,11 @@ app.delete('/test-bookings/:id', (req, res) => {
   });
 });
 
-app.post('/printed-tests', (req, res) => {
+app.post('/printed-tests', async (req, res) => {
+  console.log('Received request body:', req.body);
   const { tests } = req.body;
-  console.log(tests)
+  
+  // Check if tests is provided and is an array
   if (!tests || !Array.isArray(tests) || tests.length === 0) {
     return res.status(400).send('No tests provided');
   }
@@ -659,7 +772,8 @@ app.post('/printed-tests', (req, res) => {
 
   const checkTestDetailsQuery = `
     SELECT test_id FROM test_details 
-    WHERE rate = ? AND reference_range = ? AND interpretation = ? AND price_naira = ? AND remark = ?
+    WHERE test_name = ? AND rate = ? AND reference_range = ? AND interpretation = ? 
+    AND price_naira = ? AND remark = ?
   `;
 
   const insertTestDetailsQuery = `
@@ -667,63 +781,83 @@ app.post('/printed-tests', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `;
 
-  let promises = tests.flatMap(test => {
-    return test.tests.map(innerTest => {
-      return new Promise((resolve, reject) => {
-        let {
-          lab_no, name, sex, age, investigation, specimen, date,
-          patient_id, age_unit, time, referredBy
-        } = test;
+  try {
+    for (const test of tests) {
+      // Check if 'test.tests' exists and is an array
+      if (!Array.isArray(test.tests)) {
+        return res.status(400).send(`Invalid tests array for patient ${test.name}`);
+      }
 
-        const { test_name, rate, reference_range, interpretation,  price_naira, remark} = innerTest;
+      const { lab_no, name, sex, age, investigation, specimen, date, patient_id, age_unit, time, referredBy } = test;
 
-        db.get(checkTestDetailsQuery, [rate, reference_range, interpretation, price_naira, remark], (err, row) => {
-          if (err) {
-            console.error('Error checking test details:', err); 
-            return reject('Failed to check test details');
-          }
+      for (const innerTest of test.tests) {
+        const { test_name, rate, reference_range, interpretation, price_naira, remark } = innerTest;
 
-          if (!row) {
-            db.run(insertTestDetailsQuery, [test_name, rate, reference_range, interpretation, price_naira, remark], function (err) {
-              if (err) {
-                console.error('Error saving test details:', err);
-                return reject('Failed to save test details');
-              }
-              insertPrintedTest(this.lastID);
-            });
-          } else {
-            insertPrintedTest(row.test_id);
-          }
+        // Check if the test details already exist
+        const testDetail = await getTestDetail(test_name, rate, reference_range, interpretation, price_naira, remark);
 
-          function insertPrintedTest(test_id) {
-            const values = [
-              patient_id, lab_no, name, sex, age, age_unit, time, specimen, referredBy, date, 
-              investigation, rate, price_naira, reference_range, interpretation, remark
-            ].map(value => (value === undefined ? null : value));
+        let test_id;
+        if (testDetail) {
+          test_id = testDetail.test_id;
+        } else {
+          // Insert the test details if they don't exist
+          test_id = await insertTestDetail(test_name, rate, reference_range, interpretation, price_naira, remark);
+        }
 
-            db.run(printedTestQuery, values, function (err) {
-              if (err) {
-                console.error('Error saving printed test:', err);
-                return reject('Failed to save printed test');
-              }
-              resolve();
-            });
-          }
-        });
+        // Insert the printed test
+        const values = [
+          patient_id, lab_no, name, sex, age, age_unit, time, specimen, referredBy, date,
+          investigation, rate, price_naira, reference_range, interpretation, remark
+        ].map(value => (value === undefined ? null : value));
+
+        await insertPrintedTest(values);
+      }
+    }
+
+    res.status(201).send('Printed tests saved successfully');
+  } catch (error) {
+    console.error('Error saving printed test:', error);
+    res.status(500).send('Failed to save printed test');
+  }
+
+  // Helper functions for async/await pattern
+
+  async function getTestDetail(test_name, rate, reference_range, interpretation, price_naira, remark) {
+    return new Promise((resolve, reject) => {
+      db.get(checkTestDetailsQuery, [test_name, rate, reference_range, interpretation, price_naira, remark], (err, row) => {
+        if (err) {
+          console.error('Error checking test details:', err);
+          return reject(err);
+        }
+        resolve(row);
       });
     });
-  });
+  }
 
-  Promise.all(promises)
-    .then(() => res.status(201).send('Printed tests saved successfully'))
-    .catch((error) => res.status(500).send(error));
+  async function insertTestDetail(test_name, rate, reference_range, interpretation, price_naira, remark) {
+    return new Promise((resolve, reject) => {
+      db.run(insertTestDetailsQuery, [test_name, rate, reference_range, interpretation, price_naira, remark], function (err) {
+        if (err) {
+          console.error('Error saving test details:', err);
+          return reject(err);
+        }
+        resolve(this.lastID); // Return the inserted test detail's ID
+      });
+    });
+  }
+
+  async function insertPrintedTest(values) {
+    return new Promise((resolve, reject) => {
+      db.run(printedTestQuery, values, (err) => {
+        if (err) {
+          console.error('Error saving printed test:', err);
+          return reject(err);
+        }
+        resolve();
+      });
+    });
+  }
 });
-
-
-
-
-
-
 
 
 // Retrieve all printed tests
@@ -802,6 +936,109 @@ app.get('/masters', (req, res) => {
 //     res.status(200).json(rows);
 //   });
 // });
+// Endpoint to get total prices of printed tests grouped by month, week, and gender
+app.get('/printed-tests-summary', (req, res) => {
+  const queryMonthly = `
+    SELECT 
+      strftime('%Y-%m', date) as month, 
+      SUM(price_naira) as total_price
+    FROM 
+      printed_tests
+    GROUP BY 
+      strftime('%Y-%m', date)
+  `;
+
+  const queryWeekly = `
+    SELECT 
+      strftime('%Y-%W', date) as week, 
+      SUM(price_naira) as total_price
+    FROM 
+      printed_tests
+    GROUP BY 
+      strftime('%Y-%W', date)
+  `;
+
+  const queryGender = `
+    SELECT 
+      sex, 
+      SUM(price_naira) as total_price
+    FROM 
+      printed_tests
+    GROUP BY 
+      sex
+  `;
+
+  db.serialize(() => {
+    db.all(queryMonthly, [], (err, monthlyResults) => {
+      if (err) {
+        console.error('Error retrieving monthly summary:', err);
+        return res.status(500).send('Failed to retrieve monthly summary');
+      }
+
+      db.all(queryWeekly, [], (err, weeklyResults) => {
+        if (err) {
+          console.error('Error retrieving weekly summary:', err);
+          return res.status(500).send('Failed to retrieve weekly summary');
+        }
+
+        db.all(queryGender, [], (err, genderResults) => {
+          if (err) {
+            console.error('Error retrieving gender summary:', err);
+            return res.status(500).send('Failed to retrieve gender summary');
+          }
+
+          res.status(200).json({
+            monthly: monthlyResults,
+            weekly: weeklyResults,
+            gender: genderResults
+          });
+        });
+      });
+    });
+  });
+});
+
+// API to handle form submission
+app.post('/submit-contact-form', (req, res) => {
+  const { name, email, phone, message, consent } = req.body;
+
+  // Insert data into the database
+  const query = `INSERT INTO contact_form (name, email, phone, message, consent) VALUES (?, ?, ?, ?, ?)`;
+  db.run(query, [name, email, phone, message, consent ? 1 : 0], function (err) {
+    if (err) {
+      console.error('Error saving form submission:', err);
+      return res.status(500).send('Failed to submit form');
+    }
+
+    // Send confirmation email
+    const confirmationMessage = `Dear ${name},\n\nThank you for reaching out to us. We have received your message and will get back to you shortly.\n\nBest Regards,\nOsamedic Diagnostics`;
+    sendEmail(email, 'Contact Form Submission Confirmation', confirmationMessage);
+
+    // Send notification email to admin
+    const adminMessage = `New contact form submission from ${name} (${email}, ${phone}):\n\nMessage:\n${message}`;
+    sendEmail(process.env.ADMIN_EMAIL, 'New Contact Form Submission', adminMessage);
+
+    res.status(201).send('Form submitted successfully');
+  });
+});
+
+// API to retrieve contact information
+app.get('/contact-info', (req, res) => {
+  const contactInfo = {
+    email: 'ailemendaniel76@gmail.com',
+    location: 'Lagos, LA NG',
+    hours: [
+      { day: 'Monday', open: '9:00am', close: '10:00pm' },
+      { day: 'Tuesday', open: '9:00am', close: '10:00pm' },
+      { day: 'Wednesday', open: '9:00am', close: '10:00pm' },
+      { day: 'Thursday', open: '9:00am', close: '10:00pm' },
+      { day: 'Friday', open: '9:00am', close: '10:00pm' },
+      { day: 'Saturday', open: '9:00am', close: '6:00pm' },
+      { day: 'Sunday', open: '9:00am', close: '12:00pm' },
+    ],
+  };
+  res.status(200).json(contactInfo);
+});
 
 // Starting the server
 const PORT = process.env.PORT || 4000;
